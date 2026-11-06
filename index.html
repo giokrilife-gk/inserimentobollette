@@ -591,6 +591,20 @@ hr.div { border: none; border-top: 1px solid var(--border); margin: 1.25rem 0; }
     </div>
     <div id="import-feedback" style="font-size:13px;color:var(--green);margin-bottom:.5rem;min-height:1.2em"></div>
 
+    <!-- Incolla tabella -->
+    <div class="sec-sep"><div class="line"></div><div class="txt">Oppure incolla una tabella</div><div class="line"></div></div>
+    <div style="font-size:13px;color:var(--text-muted,#666);margin-bottom:.5rem">
+      Copia le celle da Excel / Google Sheets (<strong>prima riga = intestazioni</strong>) e incollale qui sotto. Colonne:
+      <span style="font-family:monospace">fornitore, offerta, tipo_bolletta, tipo_utenza, tariffa, quota_fissa, tipo_tariffa</span>.
+      Usa le chip "Aggiungi / Sostituisci" qui sopra.
+    </div>
+    <textarea id="paste-table" rows="7" style="width:100%;font-family:monospace;font-size:12px;padding:8px;border:1px solid #ccc;border-radius:8px;box-sizing:border-box" placeholder="fornitore&#9;offerta&#9;tipo_bolletta&#9;tipo_utenza&#9;tariffa&#9;quota_fissa&#9;tipo_tariffa&#10;Enel Energia&#9;Luce Flex 24&#9;Luce&#9;D&#9;0,1750&#9;9,00&#9;fissa"></textarea>
+    <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin:.5rem 0 1rem">
+      <button class="btn btn-amber" onclick="importaIncollato()">✓ Importa tabella incollata</button>
+      <button class="btn btn-outline btn-sm" onclick="copiaTemplateTabella()">⎘ Copia template (da incollare in Excel)</button>
+      <button class="btn btn-outline btn-sm" onclick="document.getElementById('paste-table').value=''">Svuota</button>
+    </div>
+
     <!-- Form aggiungi manuale -->
     <div class="sec-sep"><div class="line"></div><div class="txt">Aggiungi manualmente</div><div class="line"></div></div>
     <div class="form-grid">
@@ -934,7 +948,7 @@ function parseCSV(text) {
   if (lines.length < 2) return [];
 
   // Rileva il separatore di colonna (preferisce ; per evitare conflitti con , decimale)
-  const sep = lines[0].includes(';') ? ';' : ',';
+  const sep = lines[0].includes('\t') ? '\t' : (lines[0].includes(';') ? ';' : ',');
 
   // Parser CSV che rispetta i campi tra virgolette
   function splitCSVLine(line, s) {
@@ -1068,6 +1082,31 @@ function esportaFornitori() {
   ].map(v => `"${v}"`).join(';'));
   const csv = [headers.join(';'), ...rows].join('\n');
   dl('data:text/csv;charset=utf-8,\uFEFF' + encodeURIComponent(csv), 'fornitori_bollettachiara.csv');
+}
+
+// IMPORTA TABELLA INCOLLATA (da Excel / Google Sheets)
+const TEMPLATE_HEADER = ['fornitore','offerta','tipo_bolletta','tipo_utenza','tariffa','quota_fissa','tipo_tariffa'];
+function importaIncollato() {
+  const ta = document.getElementById('paste-table');
+  let txt = (ta.value || '').trim();
+  if (!txt) { feedback('Incolla prima una tabella.', 'var(--red)'); return; }
+  const prima = txt.split(/\r?\n/)[0].toLowerCase();
+  // Se manca l'intestazione, aggiungi quella standard
+  if (!/fornitore|nome/.test(prima)) {
+    const sep = prima.includes('\t') ? '\t' : (prima.includes(';') ? ';' : ',');
+    txt = TEMPLATE_HEADER.join(sep) + '\n' + txt;
+  }
+  const righe = parseCSV(txt);
+  if (!righe.length) { feedback('Nessuna riga valida trovata. Controlla le intestazioni.', 'var(--red)'); return; }
+  applicaRighe(righe);
+  ta.value = '';
+}
+function copiaTemplateTabella() {
+  const t = TEMPLATE_HEADER.join('\t') + '\n' +
+    ['Enel Energia','Luce Flex 24','Luce','D','0,1750','9,00','fissa'].join('\t');
+  const ok = () => feedback('✓ Template copiato: incollalo in Excel/Google Sheets, compila e ricopia qui.', 'var(--green)');
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(ok, () => { document.getElementById('paste-table').value = t; });
+  else document.getElementById('paste-table').value = t;
 }
 
 // TEMPLATE CSV vuoto
